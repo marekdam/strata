@@ -38,6 +38,10 @@ add_executable(testInterp ${SRC_DIR}/testInterp.cpp)
 target_include_directories(testInterp PRIVATE ${INC_DIR} ${STRATA_INC})
 target_link_libraries(testInterp ${STRATA_LIB})
 
+add_executable(testInterpolationTable ${SRC_DIR}/testInterpolationTable.cpp)
+target_include_directories(testInterpolationTable PRIVATE ${INC_DIR} strata)
+target_link_libraries(testInterpolationTable strata)
+
 add_executable(testDCIM ${SRC_DIR}/testDCIM.cpp)
 target_include_directories(testDCIM PRIVATE ${INC_DIR} ${STRATA_INC})
 target_link_libraries(testDCIM ${STRATA_LIB})

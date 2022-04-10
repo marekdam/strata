@@ -12,6 +12,7 @@
 *.so.*
 *.dylib
 *.exe
+*.idea
 build/
 *.debug
 # Latex auxiliary files
