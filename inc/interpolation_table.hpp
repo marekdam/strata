@@ -31,6 +31,7 @@
 
 #include <cassert>
 #include <functional>
+#include <set>
 
 using Int3D = std::array<int, 3>;
 using Double3D = std::array<double, 3>;
@@ -127,6 +128,8 @@ ptrdiff_t find_interval(T item, Iterator begin, Iterator end)
 template <int N> class InterpolationTable
 {
   public:
+
+	InterpolationTable() = default;
 	/// Sets the grid and the associated data. Data is stored row-major, so the "z" coordinate
 	/// changes the quickest.
 	InterpolationTable(std::vector<double> _x, std::vector<double> _y, std::vector<double> _z,
@@ -135,10 +138,11 @@ template <int N> class InterpolationTable
 	{
 	}
 
+	using InterFunction =
+		std::function<std::array<std::complex<double>, N>(double x, double y, double z)>;
 	/// Sets the grid and also sets data by a callable function oject
 	InterpolationTable(std::vector<double> _x, std::vector<double> _y, std::vector<double> _z,
-					   const std::function<std::array<std::complex<double>, N>(double x, double y,
-																			   double z)> &function)
+					   const InterFunction &function)
 		: xgrid(_x), ygrid(_y), zgrid(_z)
 	{
 		// Set data using provided function
@@ -169,8 +173,6 @@ template <int N> class InterpolationTable
 		int LY = stencil_size[1];
 		int LZ = stencil_size[2];
 
-		// This is a column vector, but the result should correspond to a row of the F matrix
-
 		Int3D Lijk = {0, 0, 0};
 		Double3D position = {x, y, z};
 		for (int i = 0; i < LX; i++)
@@ -194,6 +196,13 @@ template <int N> class InterpolationTable
 
 	/// Total number of grid points
 	int grid_size() const { return xgrid.size() * ygrid.size() * zgrid.size(); }
+
+	void get_grids(std::vector<double> &_x, std::vector<double> &_y, std::vector<double> &_z) const
+	{
+		_x = xgrid;
+		_y = ygrid;
+		_z = zgrid;
+	}
 
 	/// The number of stencils is directly related to the number of points.
 	Int3D num_stencils() const
@@ -316,5 +325,64 @@ template <int N> class InterpolationTable
 	/// Stores many components or fields.
 	std::vector<std::array<std::complex<double>, N>> data;
 };
+
+template <int N>
+double check_max_error(const std::array<std::complex<double>, N> &ref,
+					   const std::array<std::complex<double>, N> &trial)
+{
+	double max_error = std::numeric_limits<double>::min();
+	for (int i = 0; i < N; i++)
+	{
+		double error = std::abs(ref[i] - trial[i]) / std::abs(ref[i]);
+		max_error = std::max(error, max_error);
+	}
+	return max_error;
+}
+
+template <int N>
+bool check_interpolation_and_update_grid(
+	InterpolationTable<N> &trial, InterpolationTable<N> &new_table,
+	const std::function<std::array<std::complex<double>, N>(double x, double y, double z)> &function,
+	double mid_rtol = 1e-4)
+{
+	std::vector<double> xgrid, ygrid, zgrid;
+	trial.get_grids(xgrid, ygrid, zgrid);
+	std::set<double> xgrid_add, ygrid_add, zgrid_add;
+	bool table_changed = false;
+	for (int i = 0; i < xgrid.size() - 1; i++)
+	{
+		double x = 0.5 * (xgrid[i] + xgrid[i + 1]);
+		for (int j = 0; j < ygrid.size() - 1; j++)
+		{
+			double y = 0.5 * (ygrid[j] + ygrid[j + 1]);
+			for (int k = 0; k < zgrid.size() - 1; k++)
+			{
+				double z = 0.5 * (zgrid[k] + zgrid[k + 1]);
+				auto reference = function(x, y, z);
+				auto result = trial.compute_at(x, y, z);
+				auto max_error = check_max_error<N>(reference, result);
+				if (max_error > mid_rtol)
+				{
+					table_changed = true;
+					xgrid_add.insert(x);
+					ygrid_add.insert(y);
+					zgrid_add.insert(z);
+				}
+			}
+		}
+	}
+	if(table_changed)
+	{
+		xgrid.insert(xgrid.end(), xgrid_add.cbegin(), xgrid_add.cend());
+		ygrid.insert(ygrid.end(), ygrid_add.cbegin(), ygrid_add.cend());
+		zgrid.insert(zgrid.end(), zgrid_add.cbegin(), zgrid_add.cend());
+		std::sort(xgrid.begin(), xgrid.end());
+		std::sort(ygrid.begin(), ygrid.end());
+		std::sort(zgrid.begin(), zgrid.end());
+		InterpolationTable<N> tmp_table(xgrid, ygrid, zgrid, function);
+		std::swap(new_table,tmp_table);
+	}
+	return table_changed;
+}
 
 #endif // STRATA_INTERPOLATION_TABLE_HPP
