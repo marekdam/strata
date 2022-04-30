@@ -128,7 +128,6 @@ ptrdiff_t find_interval(T item, Iterator begin, Iterator end)
 template <int N> class InterpolationTable
 {
   public:
-
 	InterpolationTable() = default;
 	/// Sets the grid and the associated data. Data is stored row-major, so the "z" coordinate
 	/// changes the quickest.
@@ -342,12 +341,14 @@ double check_max_error(const std::array<std::complex<double>, N> &ref,
 template <int N>
 bool check_interpolation_and_update_grid(
 	InterpolationTable<N> &trial, InterpolationTable<N> &new_table,
-	const std::function<std::array<std::complex<double>, N>(double x, double y, double z)> &function,
-	double mid_rtol = 1e-4)
+	const std::function<std::array<std::complex<double>, N>(double x, double y, double z)>
+		&function,
+	double &max_err_observed, double mid_rtol = 1e-4)
 {
 	std::vector<double> xgrid, ygrid, zgrid;
 	trial.get_grids(xgrid, ygrid, zgrid);
 	std::set<double> xgrid_add, ygrid_add, zgrid_add;
+	max_err_observed = std::numeric_limits<double>::min();
 	bool table_changed = false;
 	for (int i = 0; i < xgrid.size() - 1; i++)
 	{
@@ -361,17 +362,18 @@ bool check_interpolation_and_update_grid(
 				auto reference = function(x, y, z);
 				auto result = trial.compute_at(x, y, z);
 				auto max_error = check_max_error<N>(reference, result);
+				max_err_observed = std::max(max_error, max_err_observed);
 				if (max_error > mid_rtol)
 				{
 					table_changed = true;
-					xgrid_add.insert(x);
-					ygrid_add.insert(y);
+					//xgrid_add.insert(x);
+					//ygrid_add.insert(y);
 					zgrid_add.insert(z);
 				}
 			}
 		}
 	}
-	if(table_changed)
+	if (table_changed)
 	{
 		xgrid.insert(xgrid.end(), xgrid_add.cbegin(), xgrid_add.cend());
 		ygrid.insert(ygrid.end(), ygrid_add.cbegin(), ygrid_add.cend());
@@ -380,7 +382,8 @@ bool check_interpolation_and_update_grid(
 		std::sort(ygrid.begin(), ygrid.end());
 		std::sort(zgrid.begin(), zgrid.end());
 		InterpolationTable<N> tmp_table(xgrid, ygrid, zgrid, function);
-		std::swap(new_table,tmp_table);
+		tmp_table.stencil_size = new_table.stencil_size;
+		std::swap(new_table, tmp_table);
 	}
 	return table_changed;
 }
