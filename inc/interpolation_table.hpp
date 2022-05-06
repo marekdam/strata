@@ -32,6 +32,8 @@
 #include <cassert>
 #include <functional>
 #include <set>
+#include <unordered_map>
+#include <unordered_set>
 
 using Int3D = std::array<int, 3>;
 using Double3D = std::array<double, 3>;
@@ -124,6 +126,16 @@ ptrdiff_t find_interval(T item, Iterator begin, Iterator end)
 	return interval;
 }
 
+inline std::vector<double> get_midpoints(const std::vector<double> &coords)
+{
+	std::vector<double> midpoints(coords.size() - 1);
+	for (int i = 0; i < coords.size() - 1; i++)
+	{
+		midpoints[i] = 0.5 * (coords[i] + coords[i + 1]);
+	}
+	return midpoints;
+}
+
 /// Piecewise polynomial interpolation of 3D data
 template <int N> class InterpolationTable
 {
@@ -160,6 +172,115 @@ template <int N> class InterpolationTable
 				}
 			}
 		}
+	}
+
+	/// Sets the grid and uses an existing table to set available values
+	InterpolationTable(const InterpolationTable &existing_tbl, std::vector<double> _x,
+					   std::vector<double> _y, std::vector<double> _z,
+					   const InterFunction &function)
+		: xgrid(_x), ygrid(_y), zgrid(_z)
+	{
+		assert(existing_tbl.xgrid.size() <= xgrid.size());
+		assert(existing_tbl.ygrid.size() <= ygrid.size());
+		assert(existing_tbl.zgrid.size() <= zgrid.size());
+		this->stencil_size = existing_tbl.stencil_size;
+		std::array<std::vector<double>, 3> existing_coords, new_coords;
+		existing_coords[0] = (existing_tbl.xgrid);
+		existing_coords[1] = (existing_tbl.ygrid);
+		existing_coords[2] = (existing_tbl.zgrid);
+		new_coords[0] = (xgrid);
+		new_coords[1] = (ygrid);
+		new_coords[2] = (zgrid);
+
+		std::array<std::vector<double>, 3> common_coords, unique_coords;
+		std::array<std::vector<std::pair<int, int>>, 3> common_coords_convert;
+		std::array<std::vector<std::pair<double, int>>, 3> unique_coords_indices;
+		std::array<std::unordered_map<int, int>, 3> map_to_old_data;
+		// Find points in common and track the indices
+		for (int i = 0; i < 3; i++)
+		{
+			common_coords[i].resize(existing_coords[i].size());
+			map_to_old_data[i].reserve(existing_coords[i].size());
+			auto end = std::set_intersection(existing_coords[i].cbegin(), existing_coords[i].cend(),
+											 new_coords[i].cbegin(), new_coords[i].cend(),
+											 common_coords[i].begin());
+			common_coords[i].resize(end - common_coords[i].begin());
+			common_coords_convert[i].resize(common_coords[i].size());
+			for (int j = 0; j < common_coords[i].size(); j++)
+			{
+				auto it_new = std::lower_bound(new_coords[i].cbegin(), new_coords[i].cend(),
+											   common_coords[i][j]);
+				assert(*it_new == common_coords[i][j]);
+				auto it_existing = std::lower_bound(existing_coords[i].cbegin(),
+													existing_coords[i].cend(), common_coords[i][j]);
+				assert(*it_existing == common_coords[i][j]);
+				common_coords_convert[i][j] = {it_new - new_coords[i].cbegin(),
+											   it_existing - existing_coords[i].cbegin()};
+				map_to_old_data[i].insert(common_coords_convert[i][j]);
+			}
+		}
+
+		// Find points unique to this new grid
+		for (int i = 0; i < 3; i++)
+		{
+			unique_coords[i].resize(new_coords[i].size() - common_coords[i].size());
+			std::set_difference(new_coords[i].cbegin(), new_coords[i].cend(),
+								existing_coords[i].cbegin(), existing_coords[i].cend(),
+								unique_coords[i].begin());
+			unique_coords_indices[i].resize(unique_coords[i].size());
+			for (int j = 0; j < unique_coords[i].size(); j++)
+			{
+				auto it = std::lower_bound(new_coords[i].cbegin(), new_coords[i].cend(),
+										   unique_coords[i][j]);
+				assert(*it == unique_coords[i][j]);
+				unique_coords_indices[i][j] = {*it, it - new_coords[i].cbegin()};
+			}
+		}
+
+		size_t num_coords = (common_coords[0].size() + unique_coords[0].size()) *
+							(common_coords[1].size() + unique_coords[1].size()) *
+							(common_coords[2].size() + unique_coords[2].size());
+
+		data.resize(xgrid.size() * ygrid.size() * zgrid.size());
+		assert(num_coords == data.size());
+
+		size_t copied = 0, computed = 0;
+		size_t index = 0;
+		for (int i = 0; i < xgrid.size(); i++)
+		{
+			double x = xgrid[i];
+			int x2 = -1;
+			auto search = map_to_old_data[0].find(i);
+			if (search != map_to_old_data[0].end())
+				x2 = search->second;
+			for (int j = 0; j < ygrid.size(); j++)
+			{
+				double y = ygrid[j];
+				int y2 = -1;
+				search = map_to_old_data[1].find(j);
+				if (search != map_to_old_data[1].end())
+					y2 = search->second;
+				for (int k = 0; k < zgrid.size(); k++)
+				{
+					double z = zgrid[k];
+					int z2 = -1;
+					search = map_to_old_data[2].find(k);
+					if (search != map_to_old_data[2].end())
+						z2 = search->second;
+					if (x2 == -1 || y2 == -1 || z2 == -1)
+					{
+						computed++;
+						data[index++] = function(x, y, z);
+					}
+					else
+					{
+						copied++;
+						data[index++] = existing_tbl.data[existing_tbl.get_index({x2, y2, z2})];
+					}
+				}
+			}
+		}
+		std::cout << "Num Computed: " << computed << "\t Num Copied: " << copied << std::endl;
 	}
 
 	/// Compute the function value by interpolation at the specified point
@@ -366,8 +487,8 @@ bool check_interpolation_and_update_grid(
 				if (max_error > mid_rtol)
 				{
 					table_changed = true;
-					//xgrid_add.insert(x);
-					//ygrid_add.insert(y);
+					xgrid_add.insert(x);
+					ygrid_add.insert(y);
 					zgrid_add.insert(z);
 				}
 			}
@@ -386,6 +507,79 @@ bool check_interpolation_and_update_grid(
 		std::swap(new_table, tmp_table);
 	}
 	return table_changed;
+}
+
+template <int N>
+bool check_interpolation_one_dimension_and_update_grid(
+	int dim, InterpolationTable<N> &trial, InterpolationTable<N> &new_table,
+	const std::function<std::array<std::complex<double>, N>(double, double, double)> &function,
+	double &max_err_observed, double mid_rtol = 1e-4)
+{
+	assert(dim >= 0 && dim < 3);
+	std::array<std::vector<double>, 3> coords;
+	trial.get_grids(coords[0], coords[1], coords[2]);
+
+	max_err_observed = std::numeric_limits<double>::min();
+
+	std::array<std::vector<double> *, 3> trial_coords = {&coords[0], &coords[1], &coords[2]};
+
+	auto coord_midpoints = get_midpoints(coords[dim]);
+	trial_coords[dim] = &coord_midpoints;
+	std::unordered_set<double> coord_add(coord_midpoints.size());
+
+	bool table_changed = false;
+	std::array<double, 3> coord{};
+	for (auto &x : *trial_coords[0])
+	{
+		coord[0] = x;
+		for (auto &y : *trial_coords[1])
+		{
+			coord[1] = y;
+			for (auto &z : *trial_coords[2])
+			{
+				coord[2] = z;
+				if (coord_add.find(coord[dim]) != coord_add.cend())
+					continue;
+				auto reference = function(x, y, z);
+				auto result = trial.compute_at(x, y, z);
+				auto max_error = check_max_error<N>(reference, result);
+				max_err_observed = std::max(max_error, max_err_observed);
+				if (max_error > mid_rtol)
+				{
+					table_changed = true;
+					coord_add.insert(coord[dim]);
+				}
+			}
+		}
+	}
+	if (table_changed)
+	{
+		coords[dim].insert(coords[dim].end(), coord_add.cbegin(), coord_add.cend());
+		std::sort(coords[dim].begin(), coords[dim].end());
+		InterpolationTable<N> tmp_table(trial, coords[0], coords[1], coords[2], function);
+		// InterpolationTable<N> tmp_table(coords[0], coords[1], coords[2], function);
+		tmp_table.stencil_size = trial.stencil_size;
+		std::swap(new_table, tmp_table);
+	}
+	return table_changed;
+}
+
+template <int N>
+bool check_interpolation_each_dimension_and_update_grid(
+	InterpolationTable<N> &trial, InterpolationTable<N> &new_table,
+	const std::function<std::array<std::complex<double>, N>(double, double, double)> &function,
+	double &max_err_observed, double mid_rtol = 1e-4)
+{
+	double max_err2, max_err1, max_err0;
+	bool changed2 = check_interpolation_one_dimension_and_update_grid<N>(
+		2, trial, new_table, function, max_err2, mid_rtol);
+
+	bool changed1 = check_interpolation_one_dimension_and_update_grid<N>(
+		1, new_table, new_table, function, max_err1, mid_rtol);
+	bool changed0 = check_interpolation_one_dimension_and_update_grid<N>(
+		0, new_table, new_table, function, max_err0, mid_rtol);
+	max_err_observed = std::max({max_err2, max_err1, max_err0});
+	return changed2 || changed1 || changed0;
 }
 
 #endif // STRATA_INTERPOLATION_TABLE_HPP

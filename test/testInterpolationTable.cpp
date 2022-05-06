@@ -61,16 +61,16 @@ std::array<std::complex<double>, 1> green_hgf(double x, double y, double z)
 int try_interpolation_green()
 {
 	int N = 10;
-	double mid_rtol = 1.0e-4;
+	double mid_rtol = 1.0e-3;
 	std::vector<double> xgrid, ygrid, zgrid;
-	double min = 0.0001;
+	double min = 0.01;
 	double max = 2;
 	strata::linspace(min, max, N, xgrid);
-	strata::linspace(min, max, N, ygrid);
-	strata::linspace(min, max, N, zgrid);
+	strata::linspace(0.0, 0.01, 4, ygrid);
+	strata::linspace(0.0, 0.01, 4, zgrid);
 
 	InterpolationTable<1> tbl(xgrid, ygrid, zgrid, green_hgf);
-	// Set stencil sizes that should perfectly interpolate data points
+
 	tbl.stencil_size = {4, 4, 4};
 
 	double y = min;
@@ -78,14 +78,15 @@ int try_interpolation_green()
 
 	bool refine = true;
 	InterpolationTable<1> new_table;
-	new_table.stencil_size = {4, 4, 4};
 	int tbl_iter = 1;
 	while (refine)
 	{
 		std::cout << "Table: " << tbl_iter++;
 		double max_error = 0.0;
+		//refine =
+		//	check_interpolation_and_update_grid<1>(tbl, new_table, green_hgf, max_error, mid_rtol);
 		refine =
-			check_interpolation_and_update_grid<1>(tbl, new_table, green_hgf, max_error, mid_rtol);
+			check_interpolation_each_dimension_and_update_grid<1>(tbl, new_table, green_hgf, max_error, mid_rtol);
 		std::cout << "\tMax error encountered: " << max_error << std::endl;
 		tbl = new_table;
 	}
@@ -100,15 +101,15 @@ int try_interpolation_green()
 	{
 		double xdelta = 0.5 * (xvec[i + 1] - xvec[i]);
 		x_midpoints[2 * i] = xvec[i];
-		ref_result[2 * i] = std::abs(green_hgf(xvec[i], y, z)[0]);
-		tbl_result[2 * i] = std::abs(new_table.compute_at(xvec[i], y, z)[0]);
-		ref_arg_result[2 * i] = std::arg(green_hgf(xvec[i], y, z)[0]);
-		tbl_arg_result[2 * i] = std::arg(new_table.compute_at(xvec[i], y, z)[0]);
+		ref_result[2 * i] = std::real(green_hgf(xvec[i], y, z)[0]);
+		tbl_result[2 * i] = std::real(new_table.compute_at(xvec[i], y, z)[0]);
+		ref_arg_result[2 * i] = std::imag(green_hgf(xvec[i], y, z)[0]);
+		tbl_arg_result[2 * i] = std::imag(new_table.compute_at(xvec[i], y, z)[0]);
 		x_midpoints[2 * i + 1] = xvec[i] + xdelta;
-		ref_result[2 * i + 1] = std::abs(green_hgf(xvec[i] + xdelta, y, z)[0]);
-		tbl_result[2 * i + 1] = std::abs(new_table.compute_at(xvec[i] + xdelta, y, z)[0]);
-		ref_arg_result[2 * i + 1] = std::arg(green_hgf(xvec[i] + xdelta, y, z)[0]);
-		tbl_arg_result[2 * i + 1] = std::arg(new_table.compute_at(xvec[i] + xdelta, y, z)[0]);
+		ref_result[2 * i + 1] = std::real(green_hgf(xvec[i] + xdelta, y, z)[0]);
+		tbl_result[2 * i + 1] = std::real(new_table.compute_at(xvec[i] + xdelta, y, z)[0]);
+		ref_arg_result[2 * i + 1] = std::imag(green_hgf(xvec[i] + xdelta, y, z)[0]);
+		tbl_arg_result[2 * i + 1] = std::imag(new_table.compute_at(xvec[i] + xdelta, y, z)[0]);
 	}
 	save_to_file(x_midpoints, ref_result, "ref.txt");
 	save_to_file(x_midpoints, tbl_result, "tbl.txt");
@@ -178,7 +179,7 @@ int test_MGF_interpolation()
 	z_obs = 1.1*z_src;
 	int Nx = 500; // Number of points in the sweep
 	//double x_obs_min = std::abs(1.6e-4 * lambda0);
-	double x_obs_min = std::abs(1.6e-4 * lambda0);
+	double x_obs_min = std::abs(1.0e-5 * lambda0);
 	//double x_obs_max = std::abs(1.6e1 * lambda0);
 	double x_obs_max = std::abs(1.0e0 * lambda0);
 
@@ -243,8 +244,10 @@ int test_MGF_interpolation()
 	{
 		std::cout << "Table: " << tbl_iter++;
 		double max_error = 0.0;
+		//refine =
+		//	check_interpolation_and_update_grid<10>(tbl, new_table, mgf_func_wrap, max_error, mid_rtol);
 		refine =
-			check_interpolation_and_update_grid<10>(tbl, new_table, mgf_func_wrap, max_error, mid_rtol);
+			check_interpolation_each_dimension_and_update_grid<10>(tbl, new_table, mgf_func_wrap, max_error, mid_rtol);
 		std::cout << "\tMax error encountered: " << max_error << std::endl;
 		tbl = new_table;
 	}
