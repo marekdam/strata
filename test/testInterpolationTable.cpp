@@ -176,7 +176,7 @@ int test_MGF_interpolation()
 
 	double x_src = 0.0, y_src = 0.0, z_src = 0.4e-3;
 	double y_obs = 0.0, z_obs = 1.4e-3;
-	z_obs = 1.1*z_src;
+	//z_obs = 1.1*z_src;
 	int Nx = 500; // Number of points in the sweep
 	//double x_obs_min = std::abs(1.6e-4 * lambda0);
 	double x_obs_min = std::abs(1.0e-5 * lambda0);

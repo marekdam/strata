@@ -47,6 +47,7 @@ public:
 
 	int layerID;
 	double zmax, zmin, h, epsr, sigma, mur, sigmamu;
+	double epsr_im; //Imaginary part of epsilon, indicating a frequency independent loss
 	std::vector<int> objectIDs;   /// List of indices of objects that belong to this layer
 	std::vector<double> obj_zmin, obj_zmax;  /// Min and max z extent of each object
 
@@ -55,9 +56,10 @@ public:
 	
 	Layer() {};
     
-    Layer(double _zmin, double _zmax, double _epsr = 1.0, double _mur = 1.0, double _sigma = 0.0, double _sigmamu = 0.0)
+    Layer(double _zmin, double _zmax, double _epsr = 1.0, double _mur = 1.0, double _sigma = 0.0, double _sigmamu = 0.0, double _epsr_im = 0.0)
     {
 		epsr = _epsr;
+		epsr_im = _epsr_im;
 		sigma = _sigma;
 		mur = _mur;
 		sigmamu = _sigmamu;
@@ -86,7 +88,7 @@ public:
 	void ProcessTechFile_yaml(std::string tech_file, double units = 1.0e-9);
 	void ProcessTechFile_tech(std::string tech_file, double units = 1.0e-9);
 	
-	void AddLayer(double zmin, double zmax, double epsr, double mur, double sigma, double sigmamu);
+	void AddLayer(double zmin, double zmax, double epsr, double mur, double sigma, double sigmamu, double epsr_im);
 	void SetHalfspaces(double _epsr_top, double _mur_top, double _sigma_top, double _epsr_bot, double _mur_bot, double _sigma_bot, bool _isPEC_top, bool _isPEC_bot);
 	
 	void ProcessLayers(double f);

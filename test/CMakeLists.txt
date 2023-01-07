@@ -28,7 +28,7 @@ SET(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(dev_sandbox ${SRC_DIR}/dev_sandbox.cpp)
 target_include_directories(dev_sandbox PRIVATE ${INC_DIR} ${STRATA_INC})
-target_link_libraries(dev_sandbox ${STRATA_LIB})
+target_link_libraries(dev_sandbox strata)
 
 add_executable(testMGF ${SRC_DIR}/testMGF.cpp)
 target_include_directories(testMGF PRIVATE ${INC_DIR} ${STRATA_INC})
