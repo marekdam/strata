@@ -206,8 +206,8 @@ inline std::complex<double> IntegrateSpectralNearField(SpectralMGF &smgf, double
 	
 	// Different problems seem to require different settings for h. A more robust way to pick it would be useful.
 	
-	// double h = 1.0e-2*std::abs(smgf.lm->k_max);
-	double h = 1.0e-3*std::abs(smgf.lm->k_max);
+	double h = 1.0e-2*std::abs(smgf.lm->k_max);
+	//double h = 1.0e-3*std::abs(smgf.lm->k_max);
 	// double h = 1.0e-1*std::abs(smgf.lm->k_max);
 	double krho_real, krho_imag;
 	

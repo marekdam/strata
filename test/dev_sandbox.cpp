@@ -73,8 +73,8 @@ int main(int argc, char** argv)
 	// Set the analysis frequency and wave number
 	double f = 40e9;
 
-	double x_src = 0.0, y_src = 0.0, z_src = 0.0;//15.63e-6;
-	double y_obs = 0.0, z_obs = 0.0;//-20.72e-6;
+	double x_src = 0.0, y_src = 0.0, z_src = -20.72e-6;
+	double y_obs = 0.0, z_obs = 0.0;
 	
 	int Nx = 200; // Number of points in the sweep
 	double x_obs_min = std::abs(5.0e-6);
@@ -98,27 +98,29 @@ int main(int argc, char** argv)
 	// Print layer data to the terminal for verification
 	lm.PrintLayerData(NULL, true);
 
-	int i = 1;//lm.FindLayer(z_src);
-	int m = 1;//lm.FindLayer(z_obs);
+	int i = lm.FindLayer(z_src);
+	int m = lm.FindLayer(z_obs);
 
 	// ====== Set up the source and observation points ======
-			
+	//std::vector<double> znodes_sample = {-38.22e-6, -29.47e-6, -20.72e-6, 0.0, 15.63e-6};
+	std::vector<double> znodes_sample = {-38.22e-6, -24.7575e-6, -11.295e-6, 2.1675e-6, 15.63e-6};
+	lm.InsertNodes_z(znodes_sample);
 	// We can use the Matlab-like linspace or logspace functions to create linearly- or logarithmically-spaced vectors points, provided via the Strata namespace
 	std::vector<double> x_vec;
 	//strata::logspace(std::log10(x_obs_min), std::log10(x_obs_max), Nx, x_vec);
 	strata::linspace(x_obs_min, x_obs_max, Nx, x_vec);
-	if (i == m)
-	{
-		std::vector<double> z_nodes = {z_obs, z_src};
-		lm.InsertNodes_z(z_nodes, i);
-	}
-	else
-	{
-		std::vector<double> z_nodes = {z_src};
-		lm.InsertNodes_z(z_nodes, i);
-		z_nodes = {z_obs};
-		lm.InsertNodes_z(z_nodes, m);
-	}
+//	if (i == m)
+//	{
+//		std::vector<double> z_nodes = {z_obs, z_src};
+//		lm.InsertNodes_z(z_nodes, i);
+//	}
+//	else
+//	{
+//		std::vector<double> z_nodes = {z_src};
+//		lm.InsertNodes_z(z_nodes, i);
+//		z_nodes = {z_obs};
+//		lm.InsertNodes_z(z_nodes, m);
+//	}
 
 	int N_rho = std::max(30.0, 30.0*x_obs_max/lambda0);
 	std::vector<double> rho_nodes;
@@ -127,7 +129,8 @@ int main(int argc, char** argv)
 	rho_nodes = x_vec;
 	lm.ClearNodes_rho();
 	lm.InsertNodes_rho(rho_nodes);
-
+	lm.PrintNodeData_rho(nullptr,true);
+	lm.PrintNodeData_z(nullptr,true);
 
 	// ====== Initialize the MGF class ======
 
