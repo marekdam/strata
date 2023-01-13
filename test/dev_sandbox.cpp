@@ -28,6 +28,57 @@
 
 #include "MGF.hpp"
 
+void save_mgf_table(const std::string &filename, MGF &mgf)
+{
+	std::ofstream outfile(filename);
+	// For post-processing, we'll store the frequency and positions along the z axis in the header
+	outfile << "# All SI units (Hz, m)" << std::endl;
+	outfile << "frequency: " << mgf.f << std::endl;
+	int layerid = (int)mgf.lm.z_nodes.size() - 1;
+	int total_z_nodes = 0;
+	//Save z nodes by layer
+	outfile << "# Z nodes stored as (LayerID, z_coordinate)" << std::endl;
+	for(int l_obs = (int)mgf.lm.z_nodes.size() - 1; l_obs >= 0; l_obs--)
+	{
+		total_z_nodes += (int)mgf.lm.z_nodes[l_obs].size();
+		for(auto& znodes : mgf.lm.z_nodes[l_obs])
+			outfile << layerid << " " << znodes << " ";
+		layerid--;
+	}
+	outfile << std::endl;
+	outfile << "total_z_nodes: " << total_z_nodes << std::endl;
+	//Save rho nodes
+	outfile << "rho_nodes: ";
+	for(auto& rho : mgf.lm.rho_nodes)
+		outfile << rho << " ";
+	outfile << std::endl;
+	outfile << "total_rho_nodes: " << (int)mgf.lm.rho_nodes.size() << std::endl;
+
+	outfile << "# Data Table Format (z_observe, z_source, rho, component) stored as complex number row-major."  << std::endl;
+	outfile << "# Green's function components (Gxx Gxy Gxz Gyx Gyy Gyz Gzx Gzy Gzz Gphi)"  << std::endl;
+
+	std::array<std::complex<double>, 9> G_dyadic;
+	std::complex<double> G_phi;
+	for (int l_obs = (int)mgf.lm.z_nodes.size() - 1; l_obs >= 0; l_obs--)
+		for (int z_obs = 0; z_obs < mgf.lm.z_nodes[l_obs].size(); z_obs++)
+		{
+			double z_obs_pos = mgf.lm.z_nodes[l_obs][z_obs];
+			for (int l_src = (int)mgf.lm.z_nodes.size() - 1; l_src >= 0; l_src--)
+				for (int z_src = 0; z_src < mgf.lm.z_nodes[l_src].size(); z_src++)
+				{
+					double z_src_pos = mgf.lm.z_nodes[l_src][z_src];
+					mgf.SetLayers(mgf.lm.FindLayer(z_src_pos), mgf.lm.FindLayer(z_obs_pos));
+					//mgf.SetLayers(l_src, l_obs);
+					for (auto &rho : mgf.lm.rho_nodes)
+					{
+						mgf.ComputeMGF(rho, 0.0, z_obs_pos, z_src_pos, G_dyadic, G_phi);
+						for (int i = 0; i < 9; i++)
+							outfile << G_dyadic[i].real() << " " << G_dyadic[i].imag() << " ";
+						outfile << G_phi.real() <<  " " << G_phi.imag() << std::endl;
+					}
+				}
+		}
+}
 
 int main(int argc, char** argv)
 {
@@ -103,7 +154,8 @@ int main(int argc, char** argv)
 
 	// ====== Set up the source and observation points ======
 	//std::vector<double> znodes_sample = {-38.22e-6, -29.47e-6, -20.72e-6, 0.0, 15.63e-6};
-	std::vector<double> znodes_sample = {-38.22e-6, -24.7575e-6, -11.295e-6, 2.1675e-6, 15.63e-6};
+	//std::vector<double> znodes_sample = {-38.22e-6, -24.7575e-6, -11.295e-6, 2.1675e-6, 15.63e-6};
+	std::vector<double> znodes_sample = {0.5e-6};
 	lm.InsertNodes_z(znodes_sample);
 	// We can use the Matlab-like linspace or logspace functions to create linearly- or logarithmically-spaced vectors points, provided via the Strata namespace
 	std::vector<double> x_vec;
@@ -256,9 +308,10 @@ int main(int argc, char** argv)
 			std::imag(G_dyadic[3]) << " " << std::imag(G_dyadic[4]) << " " << std::imag(G_dyadic[5]) << " " <<
 			std::imag(G_dyadic[6]) << " " << std::imag(G_dyadic[7]) << " " << std::imag(G_dyadic[8]) << " " << std::imag(G_phi) << std::endl;
 	}
-		
-	return 0;
 
+	save_mgf_table(out_file + "_complex.txt", mgf);
+
+	return 0;
 }
 
 
